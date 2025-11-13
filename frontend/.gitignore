@@ -22,3 +22,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Environment variables
+.env
+
+# Node modules
+node_modules/
+
+# Uploads folder (optional)
+uploads/
+
+# Build artifacts
+dist/
+build/
+
+# Logs
+*.log

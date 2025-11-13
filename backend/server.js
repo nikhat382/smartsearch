@@ -1,62 +1,62 @@
-// server.js
 const express = require("express");
-const multer = require("multer");
-const pdfParse = require("pdf-parse");
-const fs = require("fs");
-const path = require("path");
 const cors = require("cors");
+const multer = require("multer");
+const fs = require("fs");
+const Tesseract = require("tesseract.js");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Directories
-const uploadDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+let documentText = ""; // store entire text of uploaded file
 
 // Multer setup
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  },
 });
-const upload = multer({ storage });
+const upload = multer({ storage: storage });
 
-// Extract text from PDF
-async function extractText(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-  const pdfData = await pdfParse(dataBuffer);
-  return pdfData.text || "No text found in PDF.";
-}
-
-// Upload route
+// Upload endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const filePath = req.file.path;
 
-    console.log(" File received:", req.file.originalname);
-
-    const textContent = await extractText(req.file.path);
-    console.log(" Text extracted:", textContent.substring(0, 200)); // first 200 chars
-
-    // Send extracted text to frontend
-    res.json({
-      message: "File uploaded successfully!",
-      extractedText: textContent
+    // OCR extraction
+    const { data } = await Tesseract.recognize(filePath, "eng", {
+      logger: (m) => console.log(m),
     });
 
-  } catch (err) {
-    console.error(" Upload failed:", err.message);
-    res.status(500).json({ error: err.message });
+    documentText = data.text; // store all text
+    res.json({ message: "File uploaded and text extracted successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "OCR failed", error: error.message });
   }
 });
 
-// Ask route (simple keyword search in uploaded files)
-app.post("/ask", async (req, res) => {
-  const { question } = req.body;
-  if (!question) return res.status(400).json({ error: "Question is required" });
+// Search endpoint
+app.post("/search", (req, res) => {
+  const { query } = req.body;
+  if (!documentText) return res.json({ message: "No document uploaded yet" });
+  if (!query) return res.json({ message: "Query is empty" });
 
-  // In this simple demo, we just echo back a message
-  res.json({ answer: `You asked: "${question}". Uploaded text is available above.` });
+  const lowerQuery = query.toLowerCase();
+  const sentences = documentText.split(/\n|\r|\./).filter((s) => s.trim() !== "");
+  
+  // Return all lines/sentences that include the keyword
+  const results = sentences.filter((line) => line.toLowerCase().includes(lowerQuery));
+
+  if (results.length === 0) {
+    return res.json({ message: "No matching content found", results: [] });
+  }
+  res.json({ message: "Search completed", results });
 });
 
-app.listen(5000, () => console.log(" Server running at http://localhost:5000"));
+app.listen(5000, () => console.log("Server started on port 5000"));

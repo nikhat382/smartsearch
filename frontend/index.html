@@ -1,13 +1,73 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Document Search</title>
+</head>
+<body>
+  <h2>Smart Document Search</h2>
+
+  <input type="file" id="fileInput">
+  <button onclick="uploadFile()">Upload</button>
+  <p id="uploadMsg"></p>
+
+  <br><br>
+  <input type="text" id="searchInput" placeholder="Type text to search">
+  <button onclick="searchText()">Search</button>
+  <p id="searchMsg"></p>
+  <ul id="results"></ul>
+
+  <script>
+    async function uploadFile() {
+      const fileInput = document.getElementById("fileInput");
+      const file = fileInput.files[0];
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadMsg = document.getElementById("uploadMsg");
+      uploadMsg.textContent = "Uploading...";
+
+      try {
+        const res = await fetch("http://localhost:5000/upload", {
+          method: "POST",
+          body: formData
+        });
+        const data = await res.json();
+        uploadMsg.textContent = data.message;
+      } catch (err) {
+        uploadMsg.textContent = "Upload failed";
+        console.error(err);
+      }
+    }
+
+    async function searchText() {
+      const query = document.getElementById("searchInput").value;
+      const searchMsg = document.getElementById("searchMsg");
+      const resultsList = document.getElementById("results");
+      resultsList.innerHTML = "";
+
+      try {
+        const res = await fetch("http://localhost:5000/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query })
+        });
+        const data = await res.json();
+
+        if (data.results) {
+          data.results.forEach(line => {
+            const li = document.createElement("li");
+            li.textContent = line;
+            resultsList.appendChild(li);
+          });
+          searchMsg.textContent = "Search completed";
+        } else {
+          searchMsg.textContent = data.message;
+        }
+      } catch (err) {
+        searchMsg.textContent = "Search failed";
+        console.error(err);
+      }
+    }
+  </script>
+</body>
 </html>
